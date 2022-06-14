@@ -29,8 +29,8 @@ import static org.springframework.util.MimeTypeUtils.APPLICATION_JSON_VALUE;
 public class DatabaseController {
 
     private static final String STR = "\n";
-    private static final String DATABASE = "database";
-    private static final String COLLECTION = "collection";
+    private static final String DATABASE = "db";
+    private static final String COLLECTION = "cl";
     public static final String NAME = "name";
     public static final String VALUE = "value";
 
