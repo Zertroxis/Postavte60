@@ -44,7 +44,7 @@ public class DatabaseController {
         return collectString(mongoClient.listDatabaseNames().iterator());
     }
 
-    @GetMapping(value = "/{d}")
+    @GetMapping(value = "/{db}")
     public String getCollections(@PathVariable(DATABASE) String database) {
         return collectString(mongoClient.getDatabase(database).listCollectionNames().iterator());
     }
