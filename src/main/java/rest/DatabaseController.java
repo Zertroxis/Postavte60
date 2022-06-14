@@ -25,107 +25,101 @@ import java.util.Objects;
 import static org.springframework.util.MimeTypeUtils.APPLICATION_JSON_VALUE;
 
 @RestController
-@RequestMapping("/database")
+@RequestMapping("/db")
 public class DatabaseController {
 
-    ConnectionString connection = new ConnectionString("mongodb+srv://admin:admin@etocluster.oo7t0.mongodb.net/?retryWrites=true&w=majority");
-    MongoClientSettings connectionSettings = MongoClientSettings.builder().applyConnectionString(connection).build();
-    MongoClient mongoDB = MongoClients.create(connectionSettings);
+    private static final String STR = "\n";
+    private static final String DATABASE = "database";
+    private static final String COLLECTION = "collection";
+    public static final String NAME = "name";
+    public static final String VALUE = "value";
 
-    @PutMapping(value = "/{database}/{collection}", consumes = APPLICATION_JSON_VALUE)
+    ConnectionString connectionString = new ConnectionString("mongodb+srv://admin:admin@etocluster.oo7t0.mongodb.net/?retryWrites=true&w=majority");
+    MongoClientSettings settings = MongoClientSettings.builder().applyConnectionString(connectionString).build();
+    MongoClient mongoClient = MongoClients.create(settings);
+
+
+    @GetMapping
+    public String getDBs() {
+        return collectString(mongoClient.listDatabaseNames().iterator());
+    }
+
+    @GetMapping(value = "/{d}")
+    public String getCollections(@PathVariable(DATABASE) String database) {
+        return collectString(mongoClient.getDatabase(database).listCollectionNames().iterator());
+    }
+
+    @GetMapping(value = "/{db}/{cl}")
+    public String getDocuments(@PathVariable(DATABASE) String database,
+                               @PathVariable(COLLECTION) String collection) {
+        return collectDocuments(mongoClient.getDatabase(database).getCollection(collection).find().iterator());
+    }
+
+    @GetMapping(value = "/{db}/{cl}", params = NAME)
+    public String getDocumentsByFilter(@PathVariable(DATABASE) String database,
+                                       @PathVariable(COLLECTION) String collection,
+                                       @PathParam(NAME) String name,
+                                       @PathParam(VALUE) String value) {
+        return collectDocuments(mongoClient.getDatabase(database).getCollection(collection).find(new BasicDBObject(name, value)).iterator());
+    }
+
+
+    @PutMapping(value = "/{db}/{cl}", consumes = APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @ResponseBody
-    public String putObjects(@PathVariable("database") String database, @PathVariable("collection") String collection, HttpEntity<String> httpEntity) {
+    public String putObjects(@PathVariable(DATABASE) String database,
+                             @PathVariable(COLLECTION) String collection,
+                             HttpEntity<String> httpEntity) {
         JSONArray array = new JSONArray(Objects.requireNonNull(httpEntity.getBody()));
-        List<Document> documentsList = new ArrayList<>();
+        List<Document> documents = new ArrayList<>();
         for (Object object : array) {
-            documentsList.add(Document.parse(object.toString()));
+            documents.add(Document.parse(object.toString()));
         }
-        MongoCollection<Document> dbCollection = mongoDB.getDatabase(database).getCollection(collection);
-        dbCollection.insertMany(documentsList);
-        MongoCursor<Document> iterator = dbCollection.find().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next().toJson()).append("\n");
-        }
-        return stringBuilder.toString();
+        MongoCollection<Document> dbCollection = mongoClient.getDatabase(database).getCollection(collection);
+        dbCollection.insertMany(documents);
+        return collectDocuments(dbCollection.find().iterator());
     }
 
-    @GetMapping(value = "/{database}")
-    public String getCollections(@PathVariable("database") String database) {
-        Iterator<String> iterator = mongoDB.getDatabase(database).listCollectionNames().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next()).append("\n");
-        }
-        return stringBuilder.toString();
-    }
-
-    @GetMapping(value = "/{database}/{collection}", params = "name")
-    public String getDocumentsByFilter(@PathVariable("database") String database, @PathVariable("collection") String collection, @PathParam("name") String name, @PathParam("value") String value) {
-        Bson bson = new BasicDBObject(name, value);
-        MongoCursor<Document> iterator = mongoDB.getDatabase(database).getCollection(collection).find(bson).iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next().toJson()).append("\n");
-        }
-        return stringBuilder.toString();
-    }
-
-    @GetMapping(value = "/{database}/{collection}")
-    public String getDocuments(@PathVariable("database") String database, @PathVariable("collection") String collection) {
-        MongoCursor<Document> iterator = mongoDB.getDatabase(database).getCollection(collection).find().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next().toJson()).append("\n");
-        }
-        return stringBuilder.toString();
-    }
-
-    @PostMapping(value = "/{database}/{collection}", consumes = APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/{db}/{cl}", consumes = APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @ResponseBody
-    public String updateObjects(@PathVariable("database") String database,
-                                @PathVariable("collection") String collection,
+    public String updateObjects(@PathVariable(DATABASE) String database,
+                                @PathVariable(COLLECTION) String collection,
                                 @RequestParam String filterName,
                                 @RequestParam String filterValue,
                                 @RequestParam String fieldName,
                                 @RequestParam String fieldValue) {
-        MongoCollection<Document> dbCollection = mongoDB.getDatabase(database).getCollection(collection);
+        MongoCollection<Document> dbCollection = mongoClient.getDatabase(database).getCollection(collection);
         dbCollection.updateMany(Filters.eq(filterName, filterValue), Updates.set(fieldName, fieldValue));
-        MongoCursor<Document> iterator = dbCollection.find().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next().toJson()).append("\n");
-        }
-        return stringBuilder.toString();
+        return collectDocuments(dbCollection.find().iterator());
     }
 
-    @DeleteMapping(value = "/{database}/{collection}", consumes = APPLICATION_JSON_VALUE)
+
+    @DeleteMapping(value = "/{db}/{cl}", consumes = APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @ResponseBody
-    public String deleteObjects(@PathVariable("database") String database,
-                                @PathVariable("collection") String collection,
+    public String deleteObjects(@PathVariable(DATABASE) String database,
+                                @PathVariable(COLLECTION) String collection,
                                 @RequestParam String filterName,
                                 @RequestParam String filterValue) {
-        MongoCollection<Document> dbCollection = mongoDB.getDatabase(database).getCollection(collection);
+        MongoCollection<Document> dbCollection = mongoClient.getDatabase(database).getCollection(collection);
         dbCollection.deleteMany(Filters.regex(filterName, filterValue));
-        MongoCursor<Document> iterator = dbCollection.find().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
-        while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next().toJson()).append("\n");
-        }
-        return stringBuilder.toString();
+        return collectDocuments(dbCollection.find().iterator());
     }
 
-    @GetMapping
-    public String getDBs() {
-        Iterator<String> iterator = mongoDB.listDatabaseNames().iterator();
-        StringBuilder stringBuilder = new StringBuilder();
+    private String collectDocuments(Iterator<Document> iterator) {
+        StringBuilder sb = new StringBuilder();
         while (iterator.hasNext()) {
-            stringBuilder.append(iterator.next()).append("\n");
+            sb.append(iterator.next().toJson()).append(STR);
         }
-        return stringBuilder.toString();
+        return sb.toString();
     }
 
+    private String collectString(Iterator<String> iterator) {
+        StringBuilder sb = new StringBuilder();
+        while (iterator.hasNext()) {
+            sb.append(iterator.next()).append(STR);
+        }
+        return sb.toString();
+    }
 }
